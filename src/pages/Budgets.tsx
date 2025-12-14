@@ -24,12 +24,11 @@ const Budgets = () => {
     const [error, setError] = useState('');
 
     // Budget Form State
-    const [budgetForm, setBudgetForm] = useState({
-        amount: '',
-        month: new Date().toISOString().slice(0, 7), // YYYY-MM
-        categoryId: ''
-    });
-    const [settingBudget, setSettingBudget] = useState(false);
+    const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7)); // YYYY-MM
+    const [selectedCategoryId, setSelectedCategoryId] = useState<string>('');
+    const [amount, setAmount] = useState('');
+    const [editingId, setEditingId] = useState<number | null>(null);
+    const [saving, setSaving] = useState(false);
 
     const fetchData = async () => {
         try {
@@ -50,6 +49,24 @@ const Budgets = () => {
         fetchData();
     }, []);
 
+    // Effect to check for existing budget when selection changes
+    useEffect(() => {
+        const existingInfo = budgets.find(b =>
+            b.month === selectedMonth &&
+            (selectedCategoryId ? b.category?.id === parseInt(selectedCategoryId) : b.category === null)
+        );
+
+        if (existingInfo) {
+            setAmount(existingInfo.amount.toString());
+            setEditingId(existingInfo.id);
+        } else {
+            setAmount('');
+            setEditingId(null);
+        }
+    }, [selectedMonth, selectedCategoryId, budgets]);
+
+    const filteredBudgets = budgets.filter(b => b.month === selectedMonth);
+
     const handleAddCategory = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!newCategory.trim()) return;
@@ -68,29 +85,51 @@ const Budgets = () => {
         }
     };
 
-    const handleSetBudget = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setSettingBudget(true);
+    const handleDeleteBudget = async () => {
+        if (!editingId) return;
+        if (!window.confirm('Are you sure you want to delete this budget?')) return;
+
         try {
-            const payload = {
-                amount: parseFloat(budgetForm.amount),
-                month: budgetForm.month,
-                category: budgetForm.categoryId ? { id: parseInt(budgetForm.categoryId) } : null
-            };
-            const response = await api.post('/budgets', payload);
-            setBudgets([...budgets, response.data]);
-            // Reset amount but keep month/category for convenience
-            setBudgetForm(prev => ({ ...prev, amount: '' }));
+            await api.delete(`/budgets/${editingId}`);
+            setBudgets(prev => prev.filter(b => b.id !== editingId));
+            setAmount('');
+            setEditingId(null);
         } catch (err) {
-            console.error('Failed to set budget', err);
-            alert('Failed to set budget');
-        } finally {
-            setSettingBudget(false);
+            console.error('Failed to delete budget', err);
+            alert('Failed to delete budget');
         }
     };
 
-    const handleBudgetChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-        setBudgetForm({ ...budgetForm, [e.target.name]: e.target.value });
+    const handleSaveBudget = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setSaving(true);
+        try {
+            const payload = {
+                amount: parseFloat(amount),
+                month: selectedMonth,
+                category: selectedCategoryId ? { id: parseInt(selectedCategoryId) } : null
+            };
+
+            let updatedBudget: Budget;
+            if (editingId) {
+                // Update existing
+                const response = await api.put(`/budgets/${editingId}`, payload);
+                updatedBudget = response.data;
+                setBudgets(prev => prev.map(b => b.id === editingId ? updatedBudget : b));
+            } else {
+                // Create new
+                const response = await api.post('/budgets', payload);
+                updatedBudget = response.data;
+                setBudgets(prev => [...prev, updatedBudget]);
+            }
+
+            // Logic handled by useEffect will update state, but we might want to ensure it reflects
+        } catch (err) {
+            console.error('Failed to save budget', err);
+            alert('Failed to save budget');
+        } finally {
+            setSaving(false);
+        }
     };
 
     return (
@@ -151,21 +190,19 @@ const Budgets = () => {
                 <div className="bg-white rounded-xl shadow-sm p-6">
                     <h2 className="text-lg font-bold text-gray-900 mb-4">Monthly Budgets</h2>
 
-                    {/* Set Budget Form */}
-                    <form onSubmit={handleSetBudget} className="flex flex-col gap-3 mb-6 p-4 bg-gray-50 rounded-lg border border-gray-100">
+                    {/* Budget Form */}
+                    <form onSubmit={handleSaveBudget} className="flex flex-col gap-3 mb-6 p-4 bg-gray-50 rounded-lg border border-gray-100">
                         <div className="flex gap-2">
                             <input
                                 type="month"
-                                name="month"
-                                value={budgetForm.month}
-                                onChange={handleBudgetChange}
+                                value={selectedMonth}
+                                onChange={(e) => setSelectedMonth(e.target.value)}
                                 className="px-3 py-2 border rounded-md text-sm outline-none w-40"
                                 required
                             />
                             <select
-                                name="categoryId"
-                                value={budgetForm.categoryId}
-                                onChange={handleBudgetChange}
+                                value={selectedCategoryId}
+                                onChange={(e) => setSelectedCategoryId(e.target.value)}
                                 className="flex-1 px-3 py-2 border rounded-md text-sm outline-none"
                             >
                                 <option value="">Overall Budget (All Categories)</option>
@@ -177,10 +214,9 @@ const Budgets = () => {
                         <div className="flex gap-2">
                             <input
                                 type="number"
-                                name="amount"
                                 placeholder="Limit Amount ($)"
-                                value={budgetForm.amount}
-                                onChange={handleBudgetChange}
+                                value={amount}
+                                onChange={(e) => setAmount(e.target.value)}
                                 className="flex-1 px-3 py-2 border rounded-md text-sm outline-none"
                                 required
                                 min="0"
@@ -188,19 +224,29 @@ const Budgets = () => {
                             />
                             <button
                                 type="submit"
-                                disabled={settingBudget}
-                                className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 text-sm font-medium disabled:opacity-50"
+                                disabled={saving}
+                                className={`px-4 py-2 text-white rounded-md text-sm font-medium disabled:opacity-50 transition-colors ${editingId ? 'bg-orange-600 hover:bg-orange-700' : 'bg-green-600 hover:bg-green-700'
+                                    }`}
                             >
-                                {settingBudget ? 'Saving...' : 'Set Budget'}
+                                {saving ? 'Saving...' : editingId ? 'Update Limit' : 'Set Limit'}
                             </button>
+                            {editingId && (
+                                <button
+                                    type="button"
+                                    onClick={handleDeleteBudget}
+                                    className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 text-sm font-medium transition-colors"
+                                >
+                                    Delete
+                                </button>
+                            )}
                         </div>
                     </form>
 
                     <div className="space-y-3 max-h-[400px] overflow-y-auto">
-                        {budgets.length === 0 ? (
-                            <p className="text-gray-500 text-center text-sm">No budgets set yet.</p>
+                        {filteredBudgets.length === 0 ? (
+                            <p className="text-gray-500 text-center text-sm">No budgets set for {selectedMonth}.</p>
                         ) : (
-                            budgets.map((budget) => (
+                            filteredBudgets.map((budget) => (
                                 <div key={budget.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50">
                                     <div>
                                         <p className="font-semibold text-gray-800">
@@ -208,8 +254,19 @@ const Budgets = () => {
                                         </p>
                                         <p className="text-xs text-gray-500">{budget.month}</p>
                                     </div>
-                                    <div className="font-bold text-gray-900">
-                                        ${budget.amount.toFixed(2)}
+                                    <div className="flex items-center gap-3">
+                                        <div className="font-bold text-gray-900">
+                                            ${budget.amount.toFixed(2)}
+                                        </div>
+                                        <button
+                                            onClick={() => {
+                                                setSelectedMonth(budget.month);
+                                                setSelectedCategoryId(budget.category ? budget.category.id.toString() : '');
+                                            }}
+                                            className="text-xs text-blue-600 hover:underline"
+                                        >
+                                            Edit
+                                        </button>
                                     </div>
                                 </div>
                             ))
