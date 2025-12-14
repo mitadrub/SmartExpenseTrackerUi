@@ -4,50 +4,72 @@ import { Plus, Trash2, Calendar } from 'lucide-react';
 import { motion } from 'framer-motion';
 import AddExpenseModal from '../components/AddExpenseModal';
 
+interface Category {
+    id: number;
+    name: string;
+}
+
 interface Expense {
     id: number;
     description: string;
     amount: number;
     date: string; // ISO date
-    category?: {
-        id: number;
-        name: string;
-    };
+    category?: Category;
 }
 
 const Expenses = () => {
     const [expenses, setExpenses] = useState<Expense[]>([]);
     const [loading, setLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const [debugInfo, setDebugInfo] = useState<string>('');
+
+    // Filter States
+    const [categories, setCategories] = useState<Category[]>([]);
+    const [filters, setFilters] = useState({
+        from: new Date(new Date().getFullYear(), 0, 1).toISOString().split('T')[0], // Start of current year
+        to: new Date(new Date().getFullYear(), 11, 31).toISOString().split('T')[0],   // End of current year
+        categoryId: '',
+        minAmount: '',
+        maxAmount: ''
+    });
+
+
+    const fetchCategories = async () => {
+        try {
+            const response = await api.get('/categories');
+            setCategories(response.data);
+        } catch (err) {
+            console.error('Failed to fetch categories', err);
+        }
+    };
 
     const fetchExpenses = async () => {
         try {
-            // Fetch expenses for a wide range to ensure visibility
-            const now = new Date();
-            // Helper to format as YYYY-MM-DD local
-            const formatDate = (d: Date) => {
-                const year = d.getFullYear();
-                const month = String(d.getMonth() + 1).padStart(2, '0');
-                const day = String(d.getDate()).padStart(2, '0');
-                return `${year}-${month}-${day}`;
-            };
+            setLoading(true);
+            const params = new URLSearchParams();
+            if (filters.from) params.append('from', filters.from);
+            if (filters.to) params.append('to', filters.to);
+            if (filters.categoryId) params.append('category', filters.categoryId);
+            if (filters.minAmount) params.append('minAmount', filters.minAmount);
+            if (filters.maxAmount) params.append('maxAmount', filters.maxAmount);
 
-            const fromDate = formatDate(new Date(now.getFullYear(), 0, 1));
-            const toDate = formatDate(new Date(now.getFullYear(), 11, 31));
-
-            const url = `/expenses?from=${fromDate}&to=${toDate}`;
-            const response = await api.get(url);
-
+            const response = await api.get(`/expenses?${params.toString()}`);
             console.log('API Response:', response.data);
-            setDebugInfo(JSON.stringify(response.data, null, 2));
             setExpenses(response.data);
         } catch (err: any) {
             console.error('Failed to fetch expenses', err);
-            setDebugInfo('Error: ' + (err.response?.data?.message || err.message));
         } finally {
             setLoading(false);
         }
+    };
+
+    const handleFilterChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+        const { name, value } = e.target;
+        setFilters(prev => ({ ...prev, [name]: value }));
+    };
+
+    const applyFilters = (e: React.FormEvent) => {
+        e.preventDefault();
+        fetchExpenses();
     };
 
     const deleteExpense = async (id: number) => {
@@ -62,6 +84,7 @@ const Expenses = () => {
     };
 
     useEffect(() => {
+        fetchCategories();
         fetchExpenses();
     }, []);
 
@@ -78,11 +101,75 @@ const Expenses = () => {
                 </button>
             </div>
 
-            {/* Debug Info Block */}
-            <div className="p-4 bg-gray-100 rounded text-xs font-mono overflow-auto max-h-40 border border-gray-300">
-                <p className="font-bold text-gray-700">Debug Data Raw:</p>
-                <pre>{debugInfo || 'No data fetched yet'}</pre>
-            </div>
+            {/* Filters Section */}
+            <form onSubmit={applyFilters} className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
+                <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">From Date</label>
+                    <input
+                        type="date"
+                        name="from"
+                        value={filters.from}
+                        onChange={handleFilterChange}
+                        className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                    />
+                </div>
+                <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">To Date</label>
+                    <input
+                        type="date"
+                        name="to"
+                        value={filters.to}
+                        onChange={handleFilterChange}
+                        className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                    />
+                </div>
+                <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Category</label>
+                    <select
+                        name="categoryId"
+                        value={filters.categoryId}
+                        onChange={handleFilterChange}
+                        className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                    >
+                        <option value="">All Categories</option>
+                        {categories.map(cat => (
+                            <option key={cat.id} value={cat.id}>{cat.name}</option>
+                        ))}
+                    </select>
+                </div>
+                <div className="flex gap-2">
+                    <div className="flex-1">
+                        <label className="block text-xs font-medium text-gray-700 mb-1">Min $</label>
+                        <input
+                            type="number"
+                            name="minAmount"
+                            placeholder="0"
+                            value={filters.minAmount}
+                            onChange={handleFilterChange}
+                            className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                        />
+                    </div>
+                    <div className="flex-1">
+                        <label className="block text-xs font-medium text-gray-700 mb-1">Max $</label>
+                        <input
+                            type="number"
+                            name="maxAmount"
+                            placeholder="Inf"
+                            value={filters.maxAmount}
+                            onChange={handleFilterChange}
+                            className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                        />
+                    </div>
+                </div>
+                <button
+                    type="submit"
+                    className="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors text-sm font-medium"
+                >
+                    Apply Filters
+                </button>
+            </form>
+
+
 
             <div className="bg-white rounded-xl shadow-sm overflow-hidden">
                 {loading ? (
