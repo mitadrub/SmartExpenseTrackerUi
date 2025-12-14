@@ -126,7 +126,7 @@ const Analytics = () => {
                                 <Tooltip
                                     contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
                                     labelFormatter={(value) => new Date(value).toLocaleDateString()}
-                                    formatter={(value: number) => [`$${value.toFixed(2)}`, 'Amount']}
+                                    formatter={(value: number) => [`₹${value.toFixed(2)}`, 'Amount']}
                                 />
                                 <Line
                                     type="monotone"

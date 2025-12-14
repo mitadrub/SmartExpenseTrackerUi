@@ -111,7 +111,7 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({ isOpen, onClose, onEx
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">Amount</label>
                             <div className="relative">
-                                <span className="absolute left-3 top-2.5 text-gray-500">$</span>
+                                <span className="absolute left-3 top-2.5 text-gray-500">₹</span>
                                 <input
                                     type="number"
                                     step="0.01"

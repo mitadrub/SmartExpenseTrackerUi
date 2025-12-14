@@ -139,7 +139,7 @@ const Expenses = () => {
                 </div>
                 <div className="flex gap-2">
                     <div className="flex-1">
-                        <label className="block text-xs font-medium text-gray-700 mb-1">Min $</label>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">Min ₹</label>
                         <input
                             type="number"
                             name="minAmount"
@@ -150,7 +150,7 @@ const Expenses = () => {
                         />
                     </div>
                     <div className="flex-1">
-                        <label className="block text-xs font-medium text-gray-700 mb-1">Max $</label>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">Max ₹</label>
                         <input
                             type="number"
                             name="maxAmount"
@@ -205,7 +205,7 @@ const Expenses = () => {
                                         </div>
                                     </td>
                                     <td className="px-6 py-4 font-semibold text-right text-gray-900">
-                                        ${expense.amount.toFixed(2)}
+                                        ₹{expense.amount.toFixed(2)}
                                     </td>
                                     <td className="px-6 py-4 text-right">
                                         <button

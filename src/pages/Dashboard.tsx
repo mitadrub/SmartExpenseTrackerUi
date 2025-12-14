@@ -55,7 +55,7 @@ const Dashboard = () => {
                 <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="p-6 bg-white rounded-xl shadow-sm border border-gray-100">
                     <h3 className="text-gray-500 text-sm font-medium">Total Expenses</h3>
                     <p className="text-3xl font-bold text-gray-900 mt-2">
-                        ${summary?.total?.toFixed(2) || '0.00'}
+                        ₹{summary?.total?.toFixed(2) || '0.00'}
                     </p>
                     <div className="mt-4 flex items-center text-sm">
                         {summary?.monthOverMonthChange && summary.monthOverMonthChange > 0 ? (

@@ -100,9 +100,39 @@ const Budgets = () => {
         }
     };
 
+    // Calculate Budget Stats
+    const overallBudgetObj = budgets.find(b => b.month === selectedMonth && b.category === null);
+    const overallLimit = overallBudgetObj ? overallBudgetObj.amount : 0;
+
+    const usedBudget = budgets
+        .filter(b => b.month === selectedMonth && b.category !== null)
+        .reduce((sum, b) => sum + b.amount, 0);
+
+    const remainingBudget = overallLimit > 0 ? overallLimit - usedBudget : null;
+
+    // Adjust remaining for current edit to not double count
+    const effectiveRemaining = editingId && overallLimit > 0
+        ? (remainingBudget || 0) + (budgets.find(b => b.id === editingId)?.amount || 0)
+        : (remainingBudget || 0);
+
     const handleSaveBudget = async (e: React.FormEvent) => {
         e.preventDefault();
         setSaving(true);
+        setError('');
+
+        if (selectedCategoryId && overallLimit > 0) {
+            const newAmount = parseFloat(amount);
+            // Allow if effectiveRemaining is valid number. If effectiveRemaining < 0, context is already over budget, but we check against limit.
+            // Logic: Total New + Others <= Overall.
+            // effectiveRemaining = Overall - (Total Used - Current Editing Old Amount)
+            // So if New > effectiveRemaining, then New + Others > Overall.
+            if (newAmount > effectiveRemaining) {
+                setError(`Exceeds remaining budget of ₹${effectiveRemaining.toFixed(2)}`);
+                setSaving(false);
+                return;
+            }
+        }
+
         try {
             const payload = {
                 amount: parseFloat(amount),
@@ -214,7 +244,7 @@ const Budgets = () => {
                         <div className="flex gap-2">
                             <input
                                 type="number"
-                                placeholder="Limit Amount ($)"
+                                placeholder="Limit Amount (₹)"
                                 value={amount}
                                 onChange={(e) => setAmount(e.target.value)}
                                 className="flex-1 px-3 py-2 border rounded-md text-sm outline-none"
@@ -240,6 +270,16 @@ const Budgets = () => {
                                 </button>
                             )}
                         </div>
+                        {overallLimit > 0 && (
+                            <div className="text-xs text-gray-500 flex flex-col gap-1">
+                                <div>
+                                    Overall: <span className="font-semibold">₹{overallLimit.toFixed(2)}</span> |
+                                    Allocated: <span className="font-semibold">₹{usedBudget.toFixed(2)}</span> |
+                                    Unallocated: <span className="font-semibold text-green-600">₹{(remainingBudget || 0).toFixed(2)}</span>
+                                </div>
+                            </div>
+                        )}
+                        {error && <p className="text-red-500 text-sm">{error}</p>}
                     </form>
 
                     <div className="space-y-3 max-h-[400px] overflow-y-auto">
@@ -256,7 +296,7 @@ const Budgets = () => {
                                     </div>
                                     <div className="flex items-center gap-3">
                                         <div className="font-bold text-gray-900">
-                                            ${budget.amount.toFixed(2)}
+                                            ₹{budget.amount.toFixed(2)}
                                         </div>
                                         <button
                                             onClick={() => {
